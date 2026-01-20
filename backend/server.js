@@ -1,3 +1,4 @@
+
 import express from 'express';
 import mongoose from 'mongoose';
 import http from 'http';
@@ -12,27 +13,51 @@ import { socketHandler } from './socket/socketHandler.js';
 dotenv.config();
 
 const app = express();
+app.set('trust proxy', 1); // important for Render / proxies
+
+/* ================================
+   CORS CONFIG (FIXED)
+================================ */
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://realtime-qa-dashboard.vercel.app'
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // allow requests with no origin (Postman, mobile apps)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+};
+
+/* ================================
+   SERVER + SOCKET.IO
+================================ */
 const server = http.createServer(app);
+
 const io = new Server(server, {
-  cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
-    methods: ["GET", "POST"],
-    credentials: true
-  }
+  cors: corsOptions
 });
 
-// Middleware
-app.use(cors({
-  origin: process.env.CLIENT_URL || "http://localhost:3000",
-  credentials: true
-}));
+/* ================================
+   MIDDLEWARE
+================================ */
+app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Attach io to app for use in routes
+// Attach io to app (for routes)
 app.set('io', io);
 
-// Routes
+/* ================================
+   ROUTES
+================================ */
 app.use('/api/auth', authRoutes);
 app.use('/api/questions', questionRoutes);
 
@@ -41,22 +66,22 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Server is running' });
 });
 
-// Socket.io connection handling
+/* ================================
+   SOCKET.IO HANDLER
+================================ */
 io.on('connection', (socket) => {
   socketHandler(socket, io);
 });
 
-// MongoDB connection
+/* ================================
+   DATABASE + SERVER START
+================================ */
 const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/realtime-qa';
+const MONGODB_URI =
+  process.env.MONGODB_URI || 'mongodb://localhost:27017/realtime-qa';
 
-// MongoDB connection options
-const mongooseOptions = {
-  // Remove deprecated options and use modern ones
-};
-
-// Connect to MongoDB
-mongoose.connect(MONGODB_URI, mongooseOptions)
+mongoose
+  .connect(MONGODB_URI)
   .then(() => {
     console.log('✅ Connected to MongoDB');
     server.listen(PORT, () => {
@@ -65,20 +90,16 @@ mongoose.connect(MONGODB_URI, mongooseOptions)
   })
   .catch((error) => {
     console.error('❌ MongoDB connection error:', error.message);
-    
-    // Provide helpful error messages
-    if (error.code === 8000 || error.message.includes('authentication failed')) {
-      console.error('\n💡 MongoDB Atlas Authentication Error Tips:');
-      console.error('1. Check your MONGODB_URI in .env file');
-      console.error('2. Ensure username and password are correct (URL-encoded if needed)');
-      console.error('3. Make sure your IP address is whitelisted in MongoDB Atlas');
-      console.error('4. Connection string format should be:');
-      console.error('   mongodb+srv://username:password@cluster.mongodb.net/database?retryWrites=true&w=majority');
-      console.error('\n5. If password contains special characters, URL-encode them:');
-      console.error('   @ → %40, # → %23, / → %2F, etc.');
-      console.error('\n6. For local MongoDB, use: mongodb://localhost:27017/realtime-qa');
+
+    if (
+      error.code === 8000 ||
+      error.message.includes('authentication failed')
+    ) {
+      console.error('\n💡 MongoDB Atlas Authentication Tips:');
+      console.error('1. Check MONGODB_URI in Render env');
+      console.error('2. Ensure username/password are correct');
+      console.error('3. Whitelist IP: 0.0.0.0/0 in MongoDB Atlas');
     }
-    
+
     process.exit(1);
   });
-
