@@ -38,7 +38,11 @@ export const AuthProvider = ({ children }) => {
       const response = await axios.post(`${API_URL}/auth/login`, {
         email,
         password,
-      });
+      },
+      {
+        withCredentials: false, // ✅ IMPORTANT (no cookies)
+      }
+  );
 
       const { token, user: userData } = response.data;
       localStorage.setItem('token', token);
