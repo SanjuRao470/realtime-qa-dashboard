@@ -15,6 +15,8 @@ dotenv.config();
 const app = express();
 app.set('trust proxy', 1); // important for Render / proxies
 
+
+console.log('JWT_SECRET loaded:', process.env.JWT_SECRET);
 /* ================================
    CORS CONFIG (FIXED)
 ================================ */
@@ -56,6 +58,8 @@ const io = new Server(server, {
 ================================ */
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions)); 
+app.use(express.json());          // ✅ MUST be before routes
+app.use(express.urlencoded({ extended: true }));
 
 
 
@@ -83,7 +87,7 @@ io.on('connection', (socket) => {
 /* ================================
    DATABASE + SERVER START
 ================================ */
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT;
 const MONGODB_URI =
   process.env.MONGODB_URI;
 
